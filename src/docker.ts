@@ -3,10 +3,13 @@ import Docker, {
   ImageInspectInfo,
   VolumeInspectInfo,
   NetworkInspectInfo,
+  Container,
 } from "dockerode";
+import e from "express";
 
 //var docker = new Docker({socketPath: '/var/run/docker-cli.sock'});
 var docker = new Docker({ socketPath: "/var/run/docker.sock" });
+
 
 export async function listContainers(): Promise<ContainerInspectInfo[]> {
   try {
@@ -61,7 +64,12 @@ export async function startContainer(id: string): Promise<void> {
 export async function deleteContainer(id: string): Promise<boolean> {
     try {
         const container = docker.getContainer(id);
-        await container.stop();
+        try {
+          await container.stop();
+        }
+        catch (err) {
+          console.error(`Error stopping container ${id}:`, err);
+        }
         await container.remove();
         console.log(`Container ${id} deleted successfully`);
         return true;
@@ -113,18 +121,36 @@ export async function createContainer(
   options: { [key: string]: any }
 ): Promise<ContainerInspectInfo> {
   try {
+    // Create the container
     const container = await docker.createContainer({
       Image: image,
       name: name,
       ...options,
     });
+
+    // Start the container
     await container.start();
-    console.log(`Container ${name} created and started successfully`);
+    console.log(`Container ${name} started successfully`);
+
+    // Inspect the container
     const data = await container.inspect();
-    console.log("Container data:", data);
+    console.log(`Container ${name} created and started successfully`);
+    //console.log("Container data:", data);
+
     return data;
   } catch (err) {
     console.error(`Error creating container ${name}:`, err);
+    throw err;
+  }
+}
+
+export async function killContainer(id: string): Promise<void> {
+  try {
+    const container = docker.getContainer(id);
+    await container.kill();
+    console.log(`Container ${id} killed successfully`);
+  } catch (err) {
+    console.error(`Error killing container ${id}:`, err);
     throw err;
   }
 }

@@ -14,7 +14,9 @@ import {
   startContainer,
   pauseContainer,
   unpauseContainer,
+  killContainer,
 } from "./docker";
+import { ContainerCreateOptions } from "dockerode";
 
 const app = express();
 const port = 3300;
@@ -42,31 +44,65 @@ app.get("/containers", async (req: Request, res: Response) => {
 
 // Create a container
 app.post("/containers", async (req: Request, res: Response): Promise<void> => {
-  const name = req.body.containerName;
-  const image = req.body.imageName;
-  const ports = req.body.ports || [];
-  const command = req.body.command;
-  const autoremove = req.body.autoremove || false;
+  const formData = req.body;
+  var { containerName, imageName, ports, command, autoremove } = formData.formData;
 
   console.log("Received request to create container:", {
-    name,
-    image,
+    containerName,
+    imageName,
     ports,
     command,
     autoremove,
   });
 
-  if (!image || !name) {
+  if (!imageName || !    containerName  ) {
     res.status(400).json({ error: "Image and name are required" });
     return;
   }
 
+  // Validate ports
+  if (ports && !Array.isArray(ports)) {
+    res.status(400).json({ error: "Ports should be an array" });
+    return;
+  }
+
+  var exposedPorts: ContainerCreateOptions["ExposedPorts"] = {};
+  var hostConfig: ContainerCreateOptions["HostConfig"] = {};
+  if (ports) {
+    for (const port of ports) {
+      const hostPort = port.hostPort;
+      const containerPort = port.containerPort;
+      if (hostPort && containerPort) {
+        exposedPorts[`${containerPort}/tcp`] = {};
+        hostConfig[`PortBindings`] = {
+          [`${containerPort}/tcp`]: [
+            {
+              HostPort: hostPort,
+            },
+          ],
+        };
+      }
+      
+    }
+  }
+
+
+
+  var options : ContainerCreateOptions = {
+    Image: imageName,
+    name: containerName,
+    Tty: true,
+    ExposedPorts: exposedPorts,
+    HostConfig: hostConfig,
+  };
+
+  console.log("Container creation options:");
+  console.dir(options, { depth: null });
+
+
   try {
-    const container = await createContainer(image, name, {
-      ExposedPorts: ports,
-      Cmd: command,
-      AutoRemove: autoremove,
-    });
+    const container = await createContainer(imageName, containerName, {
+      options });
     res.status(201).json(container);
   } catch (err) {
     console.error("Error creating container:", err);
@@ -87,6 +123,25 @@ app.delete("/containers", async (req: Request, res: Response) => {
     return;
   }
 
+  try {
+    const container = await deleteContainer(containerId);
+    if (!container) {
+      res.status(404).json({ error: "Container not found" });
+      return;
+    }
+    res.status(200).json({ message: "Container deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting container:", err);
+    res.status(500).json({ error: "Failed to delete container" });
+  }
+});
+
+app.delete("/containers/:id", async (req: Request, res: Response) => {
+  const containerId = req.params.id;
+  if (!containerId) {
+    res.status(400).json({ error: "Container ID is required" });
+    return;
+  }
   try {
     const container = await deleteContainer(containerId);
     if (!container) {
@@ -176,6 +231,21 @@ app.post("/containers/unpause", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Error unpausing container:", err);
     res.status(500).json({ error: "Failed to unpause container" });
+  }
+});
+
+app.post("/containers/kill", async (req: Request, res: Response) => {
+  const containerId = req.body.containerId;
+  if (!containerId) {
+    res.status(400).json({ error: "Container ID is required" });
+    return;
+  }
+  try {
+    await killContainer(containerId);
+    res.status(200).json({ message: "Container killed successfully" });
+  } catch (err) {
+    console.error("Error killing container:", err);
+    res.status(500).json({ error: "Failed to kill container" });
   }
 });
 
