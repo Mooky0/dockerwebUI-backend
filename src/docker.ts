@@ -4,6 +4,8 @@ import Docker, {
   VolumeInspectInfo,
   NetworkInspectInfo,
   Container,
+  Volume,
+  VolumeCreateOptions
 } from "dockerode";
 import e from "express";
 
@@ -181,6 +183,19 @@ export async function listImages(): Promise<ImageInspectInfo[]> {
   }
 }
 
+export async function deleteImage(id: string): Promise<boolean> {
+  try {
+    const image = docker.getImage(id);
+    await image.remove();
+    console.log(`Image ${id} deleted successfully`);
+    return true;
+  } catch (err) {
+    console.error(`Error deleting image ${id}:`, err);
+    throw err;
+  }
+}
+
+
 export async function listNetworks(): Promise<NetworkInspectInfo[]> {
   try {
     const networks = await docker.listNetworks();
@@ -232,3 +247,33 @@ export async function listVolumes(): Promise<VolumeInspectInfo[]> {
     throw err;
   }
 }
+
+export async function createVolume(options: VolumeCreateOptions): Promise<VolumeInspectInfo> {
+  try {
+    const volume = await docker.createVolume(options);
+    console.log(`Volume ${volume.Name} created successfully`);
+
+    // Inspect the volume
+    var vol = docker.getVolume(volume.Name);
+    const data = await vol.inspect();
+    console.log(`Volume ${vol.name} created and inspected successfully`);
+    //console.log("Container data:", data);
+
+    return data;
+  } catch (err) {
+    console.error(`Error creating volume ${options.Name}:`, err);
+    throw err;
+  }
+}
+ export async function deleteVolume(name: string): Promise<boolean> {
+  try {
+    const volume = docker.getVolume(name);
+    await volume.remove();
+    console.log(`Volume ${name} deleted successfully`);
+    return true;
+  } catch (err) {
+    console.error(`Error deleting volume ${name}:`, err);
+    throw err;
+  }
+}
+

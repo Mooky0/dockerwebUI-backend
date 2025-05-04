@@ -5,8 +5,11 @@ import cors from "cors";
 import {
   listContainers,
   listImages,
+  deleteImage,
   listNetworks,
   listVolumes,
+  deleteVolume,
+  createVolume,
   createContainer,
   deleteContainer,
   restartContainer,
@@ -16,7 +19,7 @@ import {
   unpauseContainer,
   killContainer,
 } from "./docker";
-import { ContainerCreateOptions } from "dockerode";
+import { ContainerCreateOptions, VolumeCreateOptions } from "dockerode";
 
 const app = express();
 const port = 3300;
@@ -85,8 +88,6 @@ app.post("/containers", async (req: Request, res: Response): Promise<void> => {
       
     }
   }
-
-
 
   var options : ContainerCreateOptions = {
     Image: imageName,
@@ -260,6 +261,25 @@ app.get("/images", async (req: Request, res: Response) => {
   }
 });
 
+app.delete("/images", async (req: Request, res: Response) => {
+  const imageId = req.body.imageId;
+  if (!imageId) {
+    res.status(400).json({ error: "Image ID is required" });
+    return;
+  }
+  try {
+    const image = await deleteImage(imageId);
+    if (!image) {
+      res.status(404).json({ error: "Image not found" });
+      return;
+    }
+    res.status(200).json({ message: "Image deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting image:", err);
+    res.status(500).json({ error: "Failed to delete image" });
+  }
+});
+
 app.get("/networks", async (req: Request, res: Response) => {
   try {
     const networks = await listNetworks();
@@ -269,6 +289,7 @@ app.get("/networks", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to list networks" });
   }
 });
+
 app.get("/volumes", async (req: Request, res: Response) => {
   try {
     const volumes = await listVolumes();
@@ -276,6 +297,57 @@ app.get("/volumes", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Error listing volumes:", err);
     res.status(500).json({ error: "Failed to list volumes" });
+  }
+});
+
+app.delete("/volumes", async (req: Request, res: Response) => {
+  const volumeId = req.body.volumeId;
+  if (!volumeId) {
+    res.status(400).json({ error: "Volume ID is required" });
+    return;
+  }
+  try {
+    const volume = await deleteVolume(volumeId);
+    if (!volume) {
+      res.status(404).json({ error: "Volume not found" });
+      return;
+    }
+    res.status(200).json({ message: "Volume deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting volume:", err);
+    res.status(500).json({ error: "Failed to delete volume" });
+  }
+});
+
+app.post("/volumes", async (req: Request, res: Response) => {
+  console.log("Received request to create volume:", req.body);
+
+  const volumeName = req.body.Name;
+  const volumeOptions = req.body.DriverOpts;
+  const volumeDriver = req.body.Driver;
+  const volumeLabels = req.body.Labels;
+
+  var options : VolumeCreateOptions = {
+    Name: volumeName,
+    Driver: volumeDriver,
+    Labels: volumeLabels,
+    ...volumeOptions,
+  };
+  if (!volumeName) {
+    res.status(400).json({ error: "Volume name is required" });
+    return;
+  }
+  try {
+    await createVolume(options).then((volume) => {
+      console.log("Volume created successfully:", volume);
+      return volume;
+    }).catch((err) => {
+      console.error("Error creating volume:", err);
+      throw err;
+    });
+  } catch (err) {
+    console.error("Error creating volume:", err);
+    res.status(500).json({ error: "Failed to create volume" });
   }
 });
 
