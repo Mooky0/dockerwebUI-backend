@@ -3,11 +3,8 @@ import Docker, {
   ImageInspectInfo,
   VolumeInspectInfo,
   NetworkInspectInfo,
-  Container,
-  Volume,
   VolumeCreateOptions
 } from "dockerode";
-import e from "express";
 
 //var docker = new Docker({socketPath: '/var/run/docker-cli.sock'});
 var docker = new Docker({ socketPath: "/var/run/docker.sock" });
